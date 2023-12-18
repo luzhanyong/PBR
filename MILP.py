@@ -13,16 +13,17 @@ import random
 # import LP
 #
 start_time1 = time.time()
-# # 设置随机数种子，以便结果可复现
+import MyData
+# 设置随机数种子
 random.seed(0)
-#
-# # 机器和作业的集合
-# M = LP.M  # 7台机器
-# J = LP.J # 40个作业
-#
-# # 随机生成作业权重和处理时间
-# w = LP.w
-# p = LP.p
+
+# 定义机器和作业集合
+M = MyData.M # 7台机器
+J = MyData.J  # 40个作业
+
+# 随机生成作业权重和处理时间
+w = MyData.w
+p = MyData.p
 
 M = list(range(1, 8))  # 7台机器
 J = list(range(1, 41))  # 40个作业

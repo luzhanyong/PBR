@@ -14,8 +14,11 @@ J = MyData.J  # 40个作业
 w = MyData.w
 p = MyData.p
 
+
+
 # 总时间上限T
 T = sum(max(p[j].values()) for j in J)
+print(T)
 
 # 创建模型
 model = Model("SchedulingProblem")
@@ -37,12 +40,12 @@ for j in J:
         sum(x[i, j, s] for i in M for s in range(T + 1)) == 1
     )
 
-# 约束：在任何时间，每个机器只能处理一个作业
-for i in M:
-    for t in range(T):
-        model.addConstr(
-            sum(x[i, j, s] for j in J for s in range(max(0, t - p[j][i] + 1), min(T, t + p[j][i]) + 1)) <= 1
-        )
+#约束：在任何时间，每个机器只能处理一个作业
+# for i in M:
+#     for t in range(T):
+#         model.addConstr(
+#             sum(x[i, j, s] for j in J for s in range(max(0, t - p[j][i] + 1), min(T, t + p[j][i]) + 1)) <= 1
+#         )
 
 # 求解问题
 model.optimize()
