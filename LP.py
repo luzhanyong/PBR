@@ -1,6 +1,7 @@
 from scipy.optimize import linprog
 import numpy as np
 import random
+import time
 
 # 设置随机数种子，以便结果可复现
 random.seed(0)
@@ -46,9 +47,14 @@ for i in M:
             for s in range(max(0, t - p[j][i] + 1), min(T, t + p[j][i]) + 1):
                 A_ub[(i-1) * T + t, (i-1) * len(J) * (T + 1) + (j-1) * (T + 1) + s] = 1
 
+
+start_time1 = time.time()
+
 # 求解线性规划问题
 bounds = [(0, None) for _ in c]
 res = linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
+
+
 
 
 # # 定义三维矩阵来存储结果
@@ -71,3 +77,12 @@ else:
 
 
 print(x_matrix[1])
+
+
+# 记录结束时间
+end_time = time.time()
+
+# 计算执行时间
+execution_time = end_time - start_time1
+
+print(f"linprog线性规划求解时间：{execution_time} 秒")

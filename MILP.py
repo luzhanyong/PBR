@@ -10,26 +10,26 @@ import pulp
 # p = {'Job1': {'Machine1': 1, 'Machine2': 2}, 'Job2': {'Machine1': 1, 'Machine2': 1}, 'Job3': {'Machine1': 2, 'Machine2': 2}}
 # T = 10  # 这是一个示例值
 import random
-import LP
-
+# import LP
+#
 start_time1 = time.time()
-# 设置随机数种子，以便结果可复现
+# # 设置随机数种子，以便结果可复现
 random.seed(0)
-
-# 机器和作业的集合
-M = LP.M  # 7台机器
-J = LP.J # 40个作业
-
-# 随机生成作业权重和处理时间
-w = LP.w
-p = LP.p
-
-# M = list(range(1, 8))  # 7台机器
-# J = list(range(1, 41))  # 40个作业
+#
+# # 机器和作业的集合
+# M = LP.M  # 7台机器
+# J = LP.J # 40个作业
 #
 # # 随机生成作业权重和处理时间
-# w = {j: random.randint(1, 5) for j in J}
-# p = {j: {i: random.randint(1, 10) for i in M} for j in J}
+# w = LP.w
+# p = LP.p
+
+M = list(range(1, 8))  # 7台机器
+J = list(range(1, 41))  # 40个作业
+
+# 随机生成作业权重和处理时间
+w = {j: random.randint(1, 5) for j in J}
+p = {j: {i: random.randint(1, 10) for i in M} for j in J}
 print(p)
 
 # 总时间上限T，取所有机器上的最大处理时间之和

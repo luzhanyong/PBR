@@ -1,53 +1,62 @@
-import pulp
+from gurobipy import Model, GRB
+import numpy as np
 import random
+import MyData
 
-# 机器和作业的集合
-M = list(range(1, 8))  # 10台机器
-J = list(range(1, 41))  # 10个作业
+# 设置随机数种子
+random.seed(0)
+
+# 定义机器和作业集合
+M = MyData.M  # 7台机器
+J = MyData.J  # 40个作业
 
 # 随机生成作业权重和处理时间
-random.seed(0)  # 设置种子确保结果一致
-w = {j: random.randint(1, 5) for j in J}
-p = {j: {i: random.randint(1, 10) for i in M} for j in J}
+w = MyData.w
+p = MyData.p
 
-# 创建线性规划问题实例
-prob = pulp.LpProblem("SchedulingProblem", pulp.LpMinimize)
-
-# 决策变量 x_ijs 表示作业 j 在机器 i 上是否在时间 s 开始处理
-# 注意，我们需要定义一个处理时间的合理上限，这里我们使用所有作业在所有机器上处理时间的总和
+# 总时间上限T
 T = sum(max(p[j].values()) for j in J)
-x_ijs = {
-    (i, j, s): pulp.LpVariable(f'x_{i}_{j}_{s}', cat='Continuous', lowBound=0)
-    for i in M for j in J for s in range(T)
-}
+# 创建模型
+model = Model("SchedulingProblem")
+# 添加变量
+x = model.addVars(len(M), len(J), range(int(T) + 1), vtype=GRB.CONTINUOUS, name="x")
 
-# 目标函数：最小化总加权完成时间
-prob += pulp.lpSum(
-    w[j] * pulp.lpSum((s + p[j][i]) * x_ijs[i, j, s] for i in M for s in range(T))
-    for j in J
+# 目标函数
+model.setObjective(
+    sum(w[j] * (s + p[j][i]) * x[i, j, s] for i in range(len(M)) for j in range(len(J)) for s in range(int(T) + 1)),
+    GRB.MINIMIZE
 )
 
-# 约束条件：每个作业在所有机器上只能开始一次
-for j in J:
-    prob += pulp.lpSum(x_ijs[i, j, s] for i in M for s in range(T)) == 1
+# 约束：每个作业在所有机器上只能被调度一次
+for j in range(len(J)):
+    model.addConstr(
+        sum(x[i, j, s] for i in range(len(M)) for s in range(int(T) + 1)) == 1
+    )
 
-# 约束条件：在任何时间点，每台机器上只能有一个作业在处理
-for i in M:
-    for t in range(T):
-        prob += pulp.lpSum(x_ijs[i, j, s] for j in J for s in range(max(0, t - p[j][i]), min(t + 1, T))) <= 1
+# 约束：在任何时间，每个机器只能处理一个作业
+for i in range(len(M)):
+    for t in range(int(T)):
+        model.addConstr(
+            sum(x[i, j, s] for j in range(len(J)) for s in range(max(0, t - p[j][i] + 1), min(int(T), t + p[j][i]) + 1)) <= 1
+        )
 
 # 求解问题
-prob.solve()
+model.optimize()
+
+# Define the three-dimensional matrix to store the results
+x_matrix = np.zeros((len(M) + 1, len(J) + 1, T + 1))
 
 # 输出结果
-for v in prob.variables():
-    if v.varValue > 0:
-        print(v.name, "=", v.varValue)
+print('Optimal value:', model.ObjVal)
+for v in model.getVars():
+    if v.X > 1e-5:
+        print(f'{v.VarName} = {v.X}')
+        # Extract machine, job, and start time from the variable name
+        name_parts = v.VarName.split('[')[1].split(']')[0].split(',')
+        machine = int(name_parts[0])
+        job = int(name_parts[1])
+        start_time = int(name_parts[2])
+        x_matrix[machine, job, start_time] = v.X
 
-# 计算总加权完成时间
-total_weighted_completion_time = sum(
-    w[j] * (s + p[j][i]) * x_ijs[i, j, s].varValue
-    for i in M for j in J for s in range(T)
-    if x_ijs[i, j, s].varValue > 0
-)
-print("Total Weighted Completion Time:", total_weighted_completion_time)
+# Output the matrix or process it as needed
+print(x_matrix)

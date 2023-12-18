@@ -4,21 +4,22 @@ import math
 import networkx as nx
 import time
 start_time1 = time.time()
-import LP
+# import LP
+import LPByGurobi
 
 
 
 #一个任务集合J，一个机器集合M。用j∈J  i∈M
-J = LP.J
-M = LP.M
+J = LPByGurobi.J
+M = LPByGurobi.M
 #矩阵pji表示任务j在机器i上的完成时间
-Pji = LP.p  #字典
+Pji = LPByGurobi.p  #字典
 #任务J的权重
-W = LP.w    #字典
+W = LPByGurobi.w    #字典
 #问题的解  三维矩阵
-x_matrix = LP.x_matrix
+x_matrix = LPByGurobi.x_matrix
 #总任务的最大完成时间
-T = LP.T
+T = LPByGurobi.T
 
 #定义矩形
 class Rectangle:
