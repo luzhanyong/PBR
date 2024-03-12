@@ -3,23 +3,42 @@ import random
 import math
 import networkx as nx
 import time
-start_time1 = time.time()
+
+from greedy import GreedyAlgorithm
+from heuristic import HeuristicAlgorithm
 # import LP
-import LPByGurobi
+# import LPByGurobi
+import RandomAllocation
+from LP import LPByGurobi
+from ILP import MILPByGurobi
+from data import MyData
 
 
+
+
+
+# #一个任务集合J，一个机器集合M。用j∈J  i∈M
+# J = LPTest.J
+# M = LPTest.M
+# #矩阵pji表示任务j在机器i上的完成时间
+# Pji = LPTest.p  #字典
+# #任务J的权重
+# W = LPTest.w    #字典
+# #问题的解  三维矩阵
+# x_matrix = LPTest.x_matrix
+# #总任务的最大完成时间
+# T = LPTest.T
 
 #一个任务集合J，一个机器集合M。用j∈J  i∈M
-J = LPByGurobi.J
-M = LPByGurobi.M
+J = []
+M = []
 #矩阵pji表示任务j在机器i上的完成时间
-Pji = LPByGurobi.p  #字典
+Pji = {} #字典
 #任务J的权重
-W = LPByGurobi.w    #字典
+W = {}   #字典
 #问题的解  三维矩阵
-x_matrix = LPByGurobi.x_matrix
 #总任务的最大完成时间
-T = LPByGurobi.T
+T = 0
 
 #定义矩形
 class Rectangle:
@@ -76,8 +95,6 @@ class Group:
 #定义作业节点，作业需要选择两个候选组 也有可能只有一个候选组的情况
 
 
-
-
     #矩形就是线
     def add_member(self, rectangle):
         self.members.add(rectangle)
@@ -105,7 +122,7 @@ def generate_c(b):
         if c >=1 and c <(1+b):
             break
 
-    print('参数ρ：',c)
+    # print('参数ρ：',c)
     return c
 
 #计算T时间内的网格点  将网格点代表毫秒 任务在机器上的时间是s
@@ -131,8 +148,8 @@ def generate_shifting_parameter(Pji):
             tji = random.uniform(0,col_value)
             SPji[row_key][col_key] = tji
 
-    print('打印位移参数：')
-    print(SPji)
+    # print('打印位移参数：')
+    # print(SPji)
     return SPji
 
 #构建矩阵
@@ -147,8 +164,8 @@ def generate_rectangle(x_matrix):
                     #创建矩形对象
                     rectangle_obj = Rectangle(i,j,s,x_matrix[i,j,s],Pji[j][i])
                     rectangle_obj_set.add(rectangle_obj)
-    print('打印所有矩形：')
-    print_obj(rectangle_obj_set)
+    # print('打印所有矩形：')
+    # print_obj(rectangle_obj_set)
     return rectangle_obj_set
 
 #判断一个矩形属于哪些时间间隔，若不属于返回0
@@ -160,7 +177,9 @@ def find_grid_point(rectangle,grid_points,SPji):
     rectangle.baseWindows = 0
     #rectangle_start_time ~ rectangle_end_time 是否存在网格点
     for i, _ in enumerate(grid_points):
-        if rectangle_start_time*1000 <= grid_points[i] < rectangle_start_time*1000 + SPji[rectangle_job][rectangle_machine]*1000 <= grid_points[i+1]:
+        # if rectangle_start_time*1000 <= grid_points[i] < rectangle_start_time*1000 + SPji[rectangle_job][rectangle_machine]*1000 <= grid_points[i+1]:
+        if rectangle_start_time*10 <= grid_points[i] < rectangle_start_time*10 + SPji[rectangle_job][rectangle_machine]*10 <= grid_points[i+1]:
+        # if rectangle_start_time <= grid_points[i] < rectangle_start_time + SPji[rectangle_job][rectangle_machine] <= grid_points[i+1]:
             rectangle.baseWindows = i+1+1
 
 
@@ -394,9 +413,9 @@ def is_domainate(job,g):
 
 
 #计算θj 构建调度表  θj使用cj表示
-def compute_cj(job,g):
+def compute_cj(job,g,a,SPji):
     if is_domainate(job,g):
-        cj = (1+a) * find_Rijs_job_in_group(job,g).start_time + SPji[job][g[job].machine] + 0.2 * find_Rijs_job_in_group(job,g).pji
+        cj = (1 + a) * find_Rijs_job_in_group(job,g).start_time + SPji[job][g[job].machine] + 0.2 * find_Rijs_job_in_group(job,g).pji
     else:
         cj = (1 + a) * find_Rijs_job_in_group(job, g).start_time + SPji[job][g[job].machine]
     return cj
@@ -413,192 +432,271 @@ def generate_jobs_in_machine(g):
     return jobs_in_machine_map
 
 #根据cj进行升序序排列jobs_in_machine
-def sort_ac_Rijs_list_by_cj(Rijs_list,g):
+def sort_ac_Rijs_list_by_cj(Rijs_list,g,a,SPji):
     n = len(Rijs_list)
 
     for i in range(n-1):
         for j in range(0,n - i - 1):
-            if(compute_cj(Rijs_list[j].job,g) > compute_cj(Rijs_list[j + 1].job,g)):
+            if(compute_cj(Rijs_list[j].job,g,a,SPji) > compute_cj(Rijs_list[j + 1].job,g,a,SPji)):
                 temp = Rijs_list[j]
                 Rijs_list[j + 1] = Rijs_list[j]
                 Rijs_list[j] = temp
 
-def sort_ac_job_in_machine_map_by_cj(jobs_in_machine_map,g):
+def sort_ac_job_in_machine_map_by_cj(jobs_in_machine_map,g,a,SPji):
     for Rijs_list in jobs_in_machine_map.values():
-        sort_ac_Rijs_list_by_cj(Rijs_list,g)
+        sort_ac_Rijs_list_by_cj(Rijs_list,g,a,SPji)
     return jobs_in_machine_map
 
 
 
+def round(x_matrix):
+    #基于LP矩形的调度算法
+    #input ：通过线性规划得到的一个实数解xijs
+    #output：将实数解舍入为整数解的Rijs 并给出机器i调度作业j的序列
+
+    xijs = []
+
+    #步骤一：定义参数α β ρ  定义基本窗口  定义位移参数tij，为了定义每个矩形属于哪个基本窗口  定义矩形不属于基本窗口的存在
+    #定义 α=0.3  β=12.1 随机选择ρ ∈ [1, 1+β) 并且 lnρ 均匀分布在 [0, ln(1+β)) ，用 a b c 代表 α β ρ
+    a = 0.3
+    b = 12.1
+    c = generate_c(b)
+
+    #定义网格点为一个真实数gp=ρ(1+β)^k k属于整数 因此基本窗口K为(ρ(1 + β)^k−1, ρ(1 + β)^k]
+    grid_points = generate_grid_points(c,b,T)
+
+    #得到矩形集合
+    rectangles = generate_rectangle(x_matrix)
+
+    #对于每一对ij，定义一个位移参数tij∈[0-pij)，矩形属于基本窗口k的定义：s≤ ρ(1 + β)^k−1 ＜ s+tij ≤ ρ(1 + β)^k   #矩形不属于基本窗口的情况：在s 和 s+tij中没有网格点
+    SPji = generate_shifting_parameter(Pji)
+
+    #为每个矩形找到所在基本窗口
+    for rectangle in rectangles:
+        find_grid_point(rectangle,grid_points,SPji)
+    # print_obj(rectangles)
 
 
-#基于LP矩形的调度算法
-#input ：通过线性规划得到的一个实数解xijs
-#output：将实数解舍入为整数解的Rijs 并给出机器i调度作业j的序列
-
-xijs = []
-
-#步骤一：定义参数α β ρ  定义基本窗口  定义位移参数tij，为了定义每个矩形属于哪个基本窗口  定义矩形不属于基本窗口的存在
-#定义 α=0.3  β=12.1 随机选择ρ ∈ [1, 1+β) 并且 lnρ 均匀分布在 [0, ln(1+β)) ，用 a b c 代表 α β ρ
-a = 0.3
-b = 12.1
-c = generate_c(b)
-
-#定义网格点为一个真实数gp=ρ(1+β)^k k属于整数 因此基本窗口K为(ρ(1 + β)^k−1, ρ(1 + β)^k]
-grid_points = generate_grid_points(c,b,T)
-
-#得到矩形集合
-rectangles = generate_rectangle(x_matrix)
-
-#对于每一对ij，定义一个位移参数tij∈[0-pij)，矩形属于基本窗口k的定义：s≤ ρ(1 + β)^k−1 ＜ s+tij ≤ ρ(1 + β)^k   #矩形不属于基本窗口的情况：在s 和 s+tij中没有网格点
-SPji = generate_shifting_parameter(Pji)
-
-#为每个矩形找到所在基本窗口
-for rectangle in rectangles:
-    find_grid_point(rectangle,grid_points,SPji)
-print_obj(rectangles)
+    #步骤二：应用SNC：定义组群U  ，定义U->M的映射 ，定义分数概率y
+    #定义组群 对于每台机器i的基本窗口k为·   一个组，对于不在基本窗口的ij为一组    得到一个组群U
+    group_set,group_set_rec = generate_group(rectangles)
+    # print_obj(group_set)
+    # for group in group_set_rec:
+    #     # print(group)
+    #     group.display_members()
 
 
-#步骤二：应用SNC：定义组群U  ，定义U->M的映射 ，定义分数概率y
-#定义组群 对于每台机器i的基本窗口k为·   一个组，对于不在基本窗口的ij为一组    得到一个组群U
-group_set,group_set_rec = generate_group(rectangles)
-# print_obj(group_set)
-for group in group_set_rec:
-    print(group)
-    group.display_members()
+    #定义分数分配：yuj = 一个组中所有xijs的总高度
+    # yuj = 一个组中所有关于作业j的矩阵高度的和
+    #而对于映射U->M能直接得到
+    #定义支配作业的条件：一个组内作业j的xijs总高度（xij）大于1/2，表示机器对作业有足够的支配。
+
+    #应用SNC：
+    # 分组： 一个基本窗口是一组，定义的位移参数tij可以进行分组
+    #步骤一 对于每个作业随机选择两个侯选组 vj1 vj2 且 vj1 不等于 vj2 且每个组u被选择的概率为2yju 选择候选组要选择yuj大的候选组，尽量避免vj1 和 vj2 指向不同的机器
+    #为一个组u中的一个作业选择一个锚点矩阵
+    # print("选择锚点矩阵之后的组0----------------------------------------------------------------------")
+    group_set_Rijs = generate_grouop_Rijs(group_set_rec)
+    # for group in group_set_Rijs:
+    #     # print(group)
+    #     group.display_members()
+
+    #将集合转化为列表 应用SNC时，就使用下标来代替组
+    group_list_Rijs = list(group_set_Rijs)
+    #访问第1的元素
+    single_job , mult_job = calssfly_job(group_set_Rijs)
+    g_single_job_map=g_single_job(single_job,group_set_Rijs)
+
+    # print("只属于一个组的作业")
+    # print(single_job)
+    # print("属于多个组的作业")
+    # print(mult_job)
+    # print("得到组节点")
+    group_node_list = define_group(mult_job, group_list_Rijs)
+    # print(group_node_list)
+    # print("共有几组：",len(group_list_Rijs))
+
+    #为属于多个小组的作业选择两个候选边
+    Hcand = nx.MultiGraph()
+    Hmark = nx.MultiGraph()
+
+    for u in group_node_list:
+        # 将所有的小组和工作添加到图中
+        Hcand.add_node(u)
+    for j in mult_job:
+        # 所有的小组和工作添加到图中
+        Hcand.add_node(j)
 
 
-#定义分数分配：yuj = 一个组中所有xijs的总高度
-# yuj = 一个组中所有关于作业j的矩阵高度的和
-#而对于映射U->M能直接得到
-#定义支配作业的条件：一个组内作业j的xijs总高度（xij）大于1/2，表示机器对作业有足够的支配。
-
-#应用SNC：
-# 分组： 一个基本窗口是一组，定义的位移参数tij可以进行分组
-#步骤一 对于每个作业随机选择两个侯选组 vj1 vj2 且 vj1 不等于 vj2 且每个组u被选择的概率为2yju 选择候选组要选择yuj大的候选组，尽量避免vj1 和 vj2 指向不同的机器
-#为一个组u中的一个作业选择一个锚点矩阵
-print("选择锚点矩阵之后的组0----------------------------------------------------------------------")
-group_set_Rijs = generate_grouop_Rijs(group_set_rec)
-for group in group_set_Rijs:
-    print(group)
-    group.display_members()
-
-#将集合转化为列表 应用SNC时，就使用下标来代替组
-group_list_Rijs = list(group_set_Rijs)
-#访问第1的元素
-single_job , mult_job = calssfly_job(group_set_Rijs)
-g_single_job_map=g_single_job(single_job,group_set_Rijs)
-
-print("只属于一个组的作业")
-print(single_job)
-print("属于多个组的作业")
-print(mult_job)
-print("得到组节点")
-group_node_list = define_group(mult_job, group_list_Rijs)
-print(group_node_list)
-print("共有几组：",len(group_list_Rijs))
-
-#为属于多个小组的作业选择两个候选边
-Hcand = nx.MultiGraph()
-Hmark = nx.MultiGraph()
-
-for u in group_node_list:
-    # 将所有的小组和工作添加到图中
-    Hcand.add_node(u)
-for j in mult_job:
-    # 所有的小组和工作添加到图中
-    Hcand.add_node(j)
-
-
-for job in mult_job:
-    #找到作业属于哪组，并根据概率对小组进行排序
-    group_list_result = find_job_in_group(job,group_set_Rijs)
-    sort_group_list_result = sort_by_yuj(job, group_list_result, group_set_Rijs)
-    #选择概率高的前两组为候选边
-    # 为每个小组添加两个工作为候选边
-    Hcand.add_edge(sort_group_list_result[0], job)
-    Hcand.add_edge(sort_group_list_result[1], job)
-
-
-
-
-#步骤二：对选择组u的边进行配对，配对是随机均匀选择的，创建多个u的副本，u和u的副本分别拥有一个配对 最终得到一个度为2的图，该图是多个循环的并集。对于未成功配对的边（因为边可能是奇数），我们新加一个组u，将边连接u并配对
-Hsplit = pair_edges(Hcand)
-
-#步骤三：假设每个循环是4的倍数，我们取路径长度4为一段，段的结尾是组u，结构为：u-j-u‘-j’-u‘’，其中 u u' u‘’ 属于U  j j' 属于J
-segmenrts = break_into_segments(Hsplit)
-
-#步骤四：以1/2的概率   j选择u   j‘选择u’   以剩余1/2的概率     j选择u'    j‘选择u’‘
-
-sigma = rounding_along_segments(segmenrts,Hcand)
-for job in mult_job:
-    print(f"作业{job}被分配到{sigma[job]}组中")
-print("111111111111111111111111111111111111111111111111111")
-for job in single_job:
-    print(f"作业{job}被分配到{g_single_job_map[job]}组中")
-
-# 使用字典解包合并两个字典
-g_temp = {**g_single_job_map, **sigma}
-g = {}
-for job in J:
-    g[job] = g_temp[job]
-
-print("合并后的-----------------------------------------------------------------------------")
-for job in J:
-    print(f"作业{job}被分配到{g[job]}组中")
-
-group = g[1]
-print(group)
-print_obj(group.members)
-
-#步骤三：
-#为每个作业定义θj
-#在作业j上按照θj递增的顺序进行调度
-cj = compute_cj(1,g)
-print(cj)
-
-print("机器i上需要调度的任务---------------------")
-jobs_in_machine_map = generate_jobs_in_machine(g)
-
-for i in M:
-    print(f"机器{i}上的矩形有")
-    print_obj(jobs_in_machine_map[i])
-
-
-jobs_in_machine_map_ac = sort_ac_job_in_machine_map_by_cj(jobs_in_machine_map,g)
-print("排序后的调度任务-----------------------------------------")
-for i in M:
-    print(f"机器{i}上的矩形有")
-    print_obj(jobs_in_machine_map_ac[i])
+    for job in mult_job:
+        #找到作业属于哪组，并根据概率对小组进行排序
+        group_list_result = find_job_in_group(job,group_set_Rijs)
+        sort_group_list_result = sort_by_yuj(job, group_list_result, group_set_Rijs)
+        #选择概率高的前两组为候选边
+        # 为每个小组添加两个工作为候选边
+        Hcand.add_edge(sort_group_list_result[0], job)
+        Hcand.add_edge(sort_group_list_result[1], job)
 
 
 
 
+    #步骤二：对选择组u的边进行配对，配对是随机均匀选择的，创建多个u的副本，u和u的副本分别拥有一个配对 最终得到一个度为2的图，该图是多个循环的并集。对于未成功配对的边（因为边可能是奇数），我们新加一个组u，将边连接u并配对
+    Hsplit = pair_edges(Hcand)
 
-weight_sum_time = 0
-#
-# ## 根据调度表，计算加权完成时间
-for machine in M:
-    Rijs_ac = jobs_in_machine_map_ac[machine]
-    start_time = 0
-    for Rijs in Rijs_ac:
-        weight_sum_time += W[Rijs.job] * (start_time + Rijs.pji)
-        start_time += Rijs.pji
+    #步骤三：假设每个循环是4的倍数，我们取路径长度4为一段，段的结尾是组u，结构为：u-j-u‘-j’-u‘’，其中 u u' u‘’ 属于U  j j' 属于J
+    segmenrts = break_into_segments(Hsplit)
+
+    #步骤四：以1/2的概率   j选择u   j‘选择u’   以剩余1/2的概率     j选择u'    j‘选择u’‘
+
+    sigma = rounding_along_segments(segmenrts,Hcand)
+    # for job in mult_job:
+    #     print(f"作业{job}被分配到{sigma[job]}组中")
+    # print("111111111111111111111111111111111111111111111111111")
+    # for job in single_job:
+    #     print(f"作业{job}被分配到{g_single_job_map[job]}组中")
+
+    # 使用字典解包合并两个字典
+    g_temp = {**g_single_job_map, **sigma}
+    g = {}
+    for job in J:
+        g[job] = g_temp[job]
+
+    # print("合并后的-----------------------------------------------------------------------------")
+    # for job in J:
+    #     print(f"作业{job}被分配到{g[job]}组中")
+
+    group = g[1]
+    # print(group)
+    # print_obj(group.members)
+
+    #步骤三：
+    #为每个作业定义θj
+    #在作业j上按照θj递增的顺序进行调度
+    cj = compute_cj(1,g,a,SPji)
+    # print(cj)
+
+    # print("机器i上需要调度的任务---------------------")
+    jobs_in_machine_map = generate_jobs_in_machine(g)
+
+    # for i in M:
+    #     # print(f"机器{i}上的矩形有")
+    #     print_obj(jobs_in_machine_map[i])
 
 
-print(f"近似算法得到的加权完成时间为{weight_sum_time}")
+    jobs_in_machine_map_ac = sort_ac_job_in_machine_map_by_cj(jobs_in_machine_map,g,a,SPji)
+    # print("排序后的调度任务-----------------------------------------")
+    # for i in M:
+    #     # print(f"机器{i}上的矩形有")
+    #     print_obj(jobs_in_machine_map_ac[i])
 
 
 
 
 
-# 记录结束时间
-end_time = time.time()
+    weight_sum_time = 0
+    #
+    # ## 根据调度表，计算加权完成时间
+    for machine in M:
+        Rijs_ac = jobs_in_machine_map_ac[machine]
+        start_time = 0
+        for Rijs in Rijs_ac:
+            weight_sum_time += W[Rijs.job] * (start_time + Rijs.pji)
+            start_time += Rijs.pji
 
-# 计算执行时间
-execution_time = end_time - start_time1
 
-# print(f"程序执行时间：{execution_time} 秒")
+    print(f"近似算法得到的加权完成时间为{weight_sum_time}")
+    return weight_sum_time
+
+
+
+
+
+
+def avg_process_time():
+    execution_time_sum1 = 0
+    weight_time_sum1 = 0
+    execution_time_sum2 = 0
+    weight_time_sum2 = 0
+    weight_time_greedy_sum = 0
+    weight_time_heuristic_sum = 0
+    weight_time_random_sum = 0
+    execution_time_greedy = 0
+    execution_time_random = 0
+    for i in range(30):
+
+        #产生数据
+        M0, J0, w0, p0 = MyData.data()
+        optimal_value2,solved_time2 = MILPByGurobi.process_LP(M0, J0, w0, p0)
+        execution_time_sum2 += solved_time2
+        weight_time_sum2 += optimal_value2
+
+        #贪心
+        start_time_greedy = time.time()
+        weight_time_greedy = GreedyAlgorithm.greedy(M0, J0, w0, p0)
+        end_time_greedy = time.time()
+        execution_time_greedy = execution_time_greedy + (end_time_greedy - start_time_greedy)
+        weight_time_greedy_sum += weight_time_greedy
+        #启发式
+        weight_time_heuristic = HeuristicAlgorithm.henuristic(M0, J0, w0, p0)
+        weight_time_heuristic_sum += weight_time_heuristic
+        #随机
+        start_time_random = time.time()
+        weight_time_random = RandomAllocation.random_allo(M0, J0, w0, p0)
+        end_time_random = time.time()
+        execution_time_random = execution_time_random + (end_time_random - start_time_random)
+        weight_time_random_sum += weight_time_random
+
+
+        # 一个任务集合J，一个机器集合M。用j∈J  i∈M
+
+        M1, J1, w1, p1, x_matrix, T1, optimal_value1,solved_time1 = LPByGurobi.process_LP(M0, J0, w0, p0)
+        # 检查是否所有值都是整数
+        are_all_integers = np.all((x_matrix > 0.99) | (x_matrix == 0))
+
+        start_time1 = time.time()
+        if are_all_integers:
+            weight_time1 = optimal_value1
+        else:
+            global J, M, Pji, W, T
+            J = J1
+            M = M1
+            Pji = p1
+            W = w1
+            T = T1
+            weight_time1 = round(x_matrix)
+        # 记录结束时间
+        end_time1 = time.time()
+        execution_time1 = end_time1 - start_time1
+        execution_time_sum1 += execution_time1 + solved_time1
+        weight_time_sum1 += weight_time1
+
+
+
+
+    print(f'rounding的平均执行时间{execution_time_sum1/30}')
+    print(f'ILP的平均执行时间{execution_time_sum2 / 30}')
+    print(f'贪心的平均执行时间{execution_time_greedy / 30}')
+    print(f'随机的平均加执行时间{execution_time_random / 30}')
+
+    print(f'rounding的平均加权完成时间{weight_time_sum1/30000}')
+    print(f'ILP的平均加权完成时间{weight_time_sum2 / 30000}')
+    print(f'贪心的平均加权完成时间{weight_time_greedy_sum / 30000}')
+    # print(f'启发式的平均加权完成时间{weight_time_heuristic_sum / 30}')
+    print(f'随机的平均加权完成时间{weight_time_random_sum / 30000}')
+
+    print(f'rounding的平均总时间{(execution_time_sum1+(weight_time_sum1/1000)) / 30}')
+    print(f'ILP的平均总时间{(execution_time_sum2 + (weight_time_sum2/1000))/ 30}')
+    print(f'贪心的平均总时间{(execution_time_greedy + (weight_time_greedy_sum/1000)) / 30}')
+    print(f'随机的平均总时间{(execution_time_random + (weight_time_random_sum/1000))/ 30}')
+
+if __name__ == '__main__':
+    avg_process_time()
+
+
+
+
+
+
 
 
 
