@@ -5,6 +5,7 @@ import time
 from data import MyData
 import gurobipy as gp
 
+from branchAndBound import bb
 
 # # 定义机器和作业集合
 # M = MyData.M  # 7台机器
@@ -89,9 +90,12 @@ def LP(M,J,w,p):
     return  x_matrix,T,model.ObjVal,solved_time
 def process_LP(M,J,w,p):
     x_matrix,T,optimal_value,solved_time = LP(M,J,w,p)
+    print(f'ILP求解时间{solved_time}')
     return optimal_value,solved_time
 
 if __name__ == '__main__':
     M0, J0, w0, p0 = MyData.data()
     optimal_value,solved_time = process_LP(M0, J0, w0, p0)
     print(optimal_value,solved_time)
+
+    bb.bb_optimization(M0, J0, w0, p0)

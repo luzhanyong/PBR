@@ -4,6 +4,7 @@ import math
 import networkx as nx
 import time
 
+from branchAndBound import bb
 from greedy import GreedyAlgorithm
 from heuristic import HeuristicAlgorithm
 # import LP
@@ -622,10 +623,14 @@ def avg_process_time():
     weight_time_random_sum = 0
     execution_time_greedy = 0
     execution_time_random = 0
-    for i in range(30):
+    weight_time_bb_sum = 0
+    execution_time_bb_sum = 0
+    for i in range(3):
 
         #产生数据
         M0, J0, w0, p0 = MyData.data()
+
+        #整数线性规划
         optimal_value2,solved_time2 = MILPByGurobi.process_LP(M0, J0, w0, p0)
         execution_time_sum2 += solved_time2
         weight_time_sum2 += optimal_value2
@@ -649,7 +654,18 @@ def avg_process_time():
 
         # 一个任务集合J，一个机器集合M。用j∈J  i∈M
 
-        M1, J1, w1, p1, x_matrix, T1, optimal_value1,solved_time1 = LPByGurobi.process_LP(M0, J0, w0, p0)
+        #松弛的LP
+        M1, J1, w1, p1, x_matrix, T1, optimal_value1,solved_time1,model = LPByGurobi.process_LP(M0, J0, w0, p0)
+
+        # 分支定界法
+        start_time_bb = time.time()
+        # result, gap,global_LB = bb.bb_optimization(M1, J1, w1, p1)
+        global_LB = bb.bb_optimization(M1, J1, w1, p1)
+        end_time_bb = time.time()
+        execution_time_bb = end_time_bb - start_time_bb
+        execution_time_bb_sum += execution_time_bb
+        weight_time_bb_sum += global_LB
+
         # 检查是否所有值都是整数
         are_all_integers = np.all((x_matrix > 0.99) | (x_matrix == 0))
 
@@ -672,22 +688,28 @@ def avg_process_time():
 
 
 
+    ## 此算法现在是用来评估时延的
+    print(f'rounding的平均执行时间{execution_time_sum1/3}')
+    print(f'bb的平均加执行时间{execution_time_bb_sum / 3}')
+    print(f'ILP的平均执行时间{execution_time_sum2 / 3}')
+    print(f'贪心的平均执行时间{execution_time_greedy / 3}')
+    print(f'随机的平均加执行时间{execution_time_random / 3}')
 
-    print(f'rounding的平均执行时间{execution_time_sum1/30}')
-    print(f'ILP的平均执行时间{execution_time_sum2 / 30}')
-    print(f'贪心的平均执行时间{execution_time_greedy / 30}')
-    print(f'随机的平均加执行时间{execution_time_random / 30}')
 
     print(f'rounding的平均加权完成时间{weight_time_sum1/30000}')
+    print(f'bb的平均加权完成时间{weight_time_bb_sum / 30000}')
     print(f'ILP的平均加权完成时间{weight_time_sum2 / 30000}')
     print(f'贪心的平均加权完成时间{weight_time_greedy_sum / 30000}')
     # print(f'启发式的平均加权完成时间{weight_time_heuristic_sum / 30}')
     print(f'随机的平均加权完成时间{weight_time_random_sum / 30000}')
 
+
     print(f'rounding的平均总时间{(execution_time_sum1+(weight_time_sum1/1000)) / 30}')
     print(f'ILP的平均总时间{(execution_time_sum2 + (weight_time_sum2/1000))/ 30}')
+    print(f'bb的平均总时间{(execution_time_bb_sum + (weight_time_bb_sum / 1000)) / 30}')
     print(f'贪心的平均总时间{(execution_time_greedy + (weight_time_greedy_sum/1000)) / 30}')
     print(f'随机的平均总时间{(execution_time_random + (weight_time_random_sum/1000))/ 30}')
+
 
 if __name__ == '__main__':
     avg_process_time()

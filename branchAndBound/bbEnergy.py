@@ -1,25 +1,76 @@
+
+## 最下化能量的分支定界法
+
 from gurobipy import *
 import copy
 import numpy as np
 import matplotlib.pyplot as plt
+from data import MyData
+import gurobipy as gp
+from LP import LPByGurobi
 
-plt.rcParams['font.sans-serif'] = ['SimHei']
 
-'''定义了一个线性松弛问题，并用Gurobi求解'''
-initial_LP = Model('initial LP')  # 定义变量initial_LP，调用Gurobi的Model，选择Initial Programming（整数规划）模型
-x = {}  # 创建一个空字典来存储决策变量
+## 这个部分和LPByGurobi中的LP方法一致
+def gurobi_optimization(M, J, w, p):
 
-for i in range(2):  # 创建两个决策变量
-    # 下界lb为0，上界ub为正无穷，变量类型vtype为连续型，变量名称name为x0和x1
-    x[i] = initial_LP.addVar(lb=0, ub=GRB.INFINITY, vtype=GRB.CONTINUOUS, name='x_' + str(i))
 
-initial_LP.setObjective(100 * x[0] + 150 * x[1], GRB.MINIMIZE)  # 目标函数，设置为最大化MAXIMIZE
-initial_LP.addConstr(2 * x[0] + x[1] <= 10)  # 约束条件1
-initial_LP.addConstr(3 * x[0] + 6 * x[1] <= 40)  # 约束条件2
 
-# initial_LP.optimize() # 调用求解器
-# for var in initial_LP.getVars():
-#     print(var.Varname,'=',var.x)
+
+    plt.rcParams['font.sans-serif'] = ['SimHei']
+
+    '''定义了一个线性松弛问题，并用Gurobi求解'''
+    initial_LP = Model('initial LP')  # 定义变量initial_LP，调用Gurobi的Model，选择Initial Programming（整数规划）模型
+    x = {}  # 创建一个空字典来存储决策变量
+
+    # for i in range(2):  # 创建两个决策变量
+    #     # 下界lb为0，上界ub为正无穷，变量类型vtype为连续型，变量名称name为x0和x1
+    #     x[i] = initial_LP.addVar(lb=0, ub=GRB.INFINITY, vtype=GRB.CONTINUOUS, name='x_' + str(i))
+    #
+    # initial_LP.setObjective(100 * x[0] + 150 * x[1], GRB.MINIMIZE)  # 目标函数，设置为最大化MAXIMIZE
+    # initial_LP.addConstr(2 * x[0] + x[1] <= 10)  # 约束条件1
+
+
+    #自己的问题
+
+    initial_LP.setParam('Threads', 0)  # 使用所有可用的线程
+
+    # 添加变量  类型是小数
+    x = initial_LP.addVars(M, J,  vtype=GRB.INTEGER, name="x")
+
+    # 目标函数
+    obj_expr = 0
+    for i in M:
+        for j in J:
+            for s in range(T + 1):
+                obj_expr += w[j] * (s + p[j][i]) * x[i, j, s]
+    initial_LP.setObjective(obj_expr, GRB.MINIMIZE)
+
+    # 约束：每个作业在所有机器上只能被调度一次
+    for j in J:
+        constr_expr = 0
+        for i in M:
+            for s in range(T + 1):
+                constr_expr += x[i, j, s]
+        initial_LP.addConstr(constr_expr == 1)
+
+
+    for i in M:
+        for t in range(int(T/(len(M)))):
+            initial_LP.addConstr(gp.quicksum(x[i, j, s] for j in J for s in range(max(0, t - p[j][i] + 1), t)) <= 1)
+
+
+    # # 求解问题
+    # initial_LP.optimize()
+    #
+    # # 记录结束时间
+    # solved_time = initial_LP.getAttr('Runtime')
+
+
+    # initial_LP.optimize() # 调用求解器
+    # for var in initial_LP.getVars():
+    #     print(var.Varname,'=',var.x)
+
+    return initial_LP
 
 '''输出信息：
     Set parameter Username: 这是一个提示，通常在你的 Gurobi 环境中需要设置用户名
@@ -74,7 +125,7 @@ def branch_and_bound(initial_LP):
     global_LB = 0
     global_UB = initial_LP.ObjVal  # 将最优上界存储在global_UB中
 
-    print(global_UB)
+    # print(global_UB)
     eps = 1e-3  # 阈值，可用来判断是否为整数解。比如2.38取整之后为2，与2.38相差超过eps，则认为不是整数解
     incumbent_node = None  # 存储当前最优解的节点
     Gap = np.inf  # 当前最优解和全局上界的差距
@@ -110,7 +161,7 @@ def branch_and_bound(initial_LP):
             '''检查解是否为整数'''
             for var in current_node.model.getVars():  # 循环遍历当前节点的所有变量
                 current_node.x_sol[var.VarName] = var.x  # 提取决策变量
-                print(var.VarName, '=', var.x)  # 例如输出 x_0 = 2.2222222222222223
+                # print(var.VarName, '=', var.x)  # 例如输出 x_0 = 2.2222222222222223
                 # 把当前解化为整数解
                 current_node.x_int_sol[var.VarName] = (int)(var.x)  # 取整后储存起来
 
@@ -185,25 +236,36 @@ def branch_and_bound(initial_LP):
                     temp_global_UB = node.model.ObjVal  # 更新全局上界
         global_UB = temp_global_UB
         Gap = 100 * (global_UB - global_LB) / global_LB
-        print('Gap:', Gap, ' %')
+        # print('Gap:', Gap, ' %')
         trend_UB.append(global_UB)
         trend_LB.append(global_LB)  # 下界在前面已经更新了
 
     print(' ---------------------------------- ')
     print(' 整数规划模型求解成功 ')
     print(' ---------------------------------- ')
-    print('最优解:', incumbent_node.x_int_sol)
+    # print('最优解:', incumbent_node.x_int_sol)
     print('最优目标函数:', global_LB)
-    plt.figure()
-    plt.plot(trend_LB, label="下界", marker='o')
-    plt.plot(trend_UB, label="上界", marker='o')
-    plt.xlabel('迭代次数', fontsize=14)
-    plt.ylabel('边界更新', fontsize=14)
-    plt.title("分支定界算法求解整数规划", fontsize=18)
-    plt.legend()
-    plt.show()
-    return incumbent_node, Gap
+    # plt.figure()
+    # plt.plot(trend_LB, label="下界", marker='o')
+    # plt.plot(trend_UB, label="上界", marker='o')
+    # plt.xlabel('迭代次数', fontsize=14)
+    # plt.ylabel('边界更新', fontsize=14)
+    # plt.title("分支定界算法求解整数规划", fontsize=18)
+    # plt.legend()
+    # plt.show()
+
+
+    return incumbent_node, Gap,global_LB
+
 
 
 '''调用分支定界算法'''
-result, gap = branch_and_bound(initial_LP)
+def bb_optimization(M, J, w, p):
+    # x_matrix,T,optimal_value,solved_time,model = LPByGurobi.LP(M, J, w, p)
+
+    #构建约束LP模型
+    initial_LP = gurobi_optimization(M, J, w, p)
+    #调用分支界定法
+    result, gap, global_LB = branch_and_bound(initial_LP)
+    # global_LB = branch_and_bound(initial_LP)
+    return global_LB

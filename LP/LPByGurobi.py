@@ -104,14 +104,14 @@ def LP(M,J,w,p):
     # Output the matrix or process it as needed
     # print(x_matrix)
 
-    return x_matrix,T,model.ObjVal,solved_time
+    return x_matrix,T,model.ObjVal,solved_time,model
 
 
 def process_LP(M, J, w, p):
 
 
-    x_matrix,T,optimal_value,solved_time = LP(M,J,w,p)
-    return M, J, w, p, x_matrix, T, optimal_value,solved_time
+    x_matrix,T,optimal_value,solved_time,model = LP(M,J,w,p)
+    return M, J, w, p, x_matrix, T, optimal_value,solved_time,model
 
 
 if __name__ == '__main__':
