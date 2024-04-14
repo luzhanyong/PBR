@@ -234,7 +234,9 @@ def branch_and_bound(initial_LP):
                 if (node.model.ObjVal >= temp_global_UB):
                     temp_global_UB = node.model.ObjVal  # 更新全局上界
         global_UB = temp_global_UB
-        Gap = 100 * (global_UB - global_LB) / global_LB
+
+        if global_LB != 0:
+            Gap = 100 * (global_UB - global_LB) / global_LB
         # print('Gap:', Gap, ' %')
         trend_UB.append(global_UB)
         trend_LB.append(global_LB)  # 下界在前面已经更新了

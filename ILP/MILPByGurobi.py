@@ -2,8 +2,9 @@ from gurobipy import Model, GRB
 import numpy as np
 import random
 import time
-from data import MyData
+from data import MyData_energy
 import gurobipy as gp
+
 
 from branchAndBound import bb
 
@@ -52,16 +53,27 @@ def LP(M,J,w,p):
         model.addConstr(constr_expr == 1)
 
     # 约束：在任何时间，每个机器只能处理一个作业
-
-
     for i in M:
         for t in range(int(T/(len(M)))):
             model.addConstr(gp.quicksum(x[i, j, s] for j in J for s in range(max(0, t - p[j][i] + 1), t)) <= 1)
+    #
+    # for i in M:
+    #     for t in range(T):
+    #         constr_expr = gp.quicksum(x[i, j, s] for j in J for s in range(max(0, t - p[j][i] + 1), t))
+    #         model.addConstr(constr_expr <= 1)
+
+    for i in M:
+        for j in J:
+            for s in range(T - p[j][i], T):
+                model.addConstr(x[i, j, s] == 0, f'completion_{i}_{j}_{s}')
 
     # for i in M:
-    #     for j in J:
-    #         for s in range(T - p[j][i], T):
-    #             model.addConstr(x[i, j, s] == 0, f'completion_{i}_{j}_{s}')
+    #     for t in range(0, int(T / 4)):
+    #         constr_expr = 0
+    #         for j in J:
+    #             for s in range(max(0, t - p[j][i] + 1), t):
+    #                 constr_expr += x[i, j, s]
+    #         model.addConstr(constr_expr <= 1)
 
 
     # 求解问题
@@ -94,7 +106,7 @@ def process_LP(M,J,w,p):
     return optimal_value,solved_time
 
 if __name__ == '__main__':
-    M0, J0, w0, p0 = MyData.data()
+    M0, J0, w0, p0 = MyData_energy.data()
     optimal_value,solved_time = process_LP(M0, J0, w0, p0)
     print(optimal_value,solved_time)
 

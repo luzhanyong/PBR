@@ -10,10 +10,13 @@ from heuristic import HeuristicAlgorithm
 # import LP
 # import LPByGurobi
 import RandomAllocation
-from LP import LPByGurobi
+# from LP import LPByGurobi
+from LP import LPold
 from ILP import MILPByGurobi
 from data import MyData
-
+from heuristic import mnth
+# from data import MyData_energy
+from access import access_satellite
 
 
 
@@ -435,22 +438,19 @@ def generate_jobs_in_machine(g):
 #根据cj进行升序序排列jobs_in_machine
 def sort_ac_Rijs_list_by_cj(Rijs_list,g,a,SPji):
     n = len(Rijs_list)
-
-    for i in range(n-1):
-        for j in range(0,n - i - 1):
+    for i in range(n):
+        for j in range(0, n - i - 1):
             if(compute_cj(Rijs_list[j].job,g,a,SPji) > compute_cj(Rijs_list[j + 1].job,g,a,SPji)):
-                temp = Rijs_list[j]
-                Rijs_list[j + 1] = Rijs_list[j]
-                Rijs_list[j] = temp
+                Rijs_list[j], Rijs_list[j+1] = Rijs_list[j+1], Rijs_list[j]
 
 def sort_ac_job_in_machine_map_by_cj(jobs_in_machine_map,g,a,SPji):
-    for Rijs_list in jobs_in_machine_map.values():
-        sort_ac_Rijs_list_by_cj(Rijs_list,g,a,SPji)
+    for machine in M:
+        sort_ac_Rijs_list_by_cj(jobs_in_machine_map[machine],g,a,SPji)
     return jobs_in_machine_map
 
 
 
-def round(x_matrix):
+def round(x_matrix,JL,ML):
     #基于LP矩形的调度算法
     #input ：通过线性规划得到的一个实数解xijs
     #output：将实数解舍入为整数解的Rijs 并给出机器i调度作业j的序列
@@ -580,33 +580,57 @@ def round(x_matrix):
     jobs_in_machine_map = generate_jobs_in_machine(g)
 
     # for i in M:
-    #     # print(f"机器{i}上的矩形有")
-    #     print_obj(jobs_in_machine_map[i])
+        # print(f"机器{i}上的矩形有")
+        # print_obj(jobs_in_machine_map[i])
 
 
     jobs_in_machine_map_ac = sort_ac_job_in_machine_map_by_cj(jobs_in_machine_map,g,a,SPji)
     # print("排序后的调度任务-----------------------------------------")
     # for i in M:
-    #     # print(f"机器{i}上的矩形有")
+    #     print(f"机器{i}上的矩形有")
     #     print_obj(jobs_in_machine_map_ac[i])
-
-
 
 
 
     weight_sum_time = 0
     #
     # ## 根据调度表，计算加权完成时间
+    licp_list = []
+    licp_sum = 0
+    time_sum = 0
+    lcp_up = 0
+    lcp = 0
     for machine in M:
-        Rijs_ac = jobs_in_machine_map_ac[machine]
+        Rijs_list = jobs_in_machine_map_ac[machine]
         start_time = 0
-        for Rijs in Rijs_ac:
+        licp = 0
+        for Rijs in Rijs_list:
             weight_sum_time += W[Rijs.job] * (start_time + Rijs.pji)
             start_time += Rijs.pji
+            licp += JL[Rijs.job]
+            time_sum += Rijs.pji
+        # licp = licp / ML[machine]
+        licp_sum += licp
+        licp_list.append(licp)
+        # licp_list.append(start_time)
+        # licp_sum += start_time
+    licp_avg = licp_sum / len(M)
 
+    # 计算负载
+    lm_sum = 0
+    for i, element in enumerate(licp_list):
+        lm = element / ML[i+1]
+        lm_sum += lm
 
+    for l in licp_list:
+        lcp_up += pow(l - licp_avg, 2)
+    lcp = lcp_up / len(M)
+    print(licp_list)
+    print(f'rounding licp_avg  {licp_avg}')
+    print(f"rounding计算负荷的方差为{lcp}")
     print(f"近似算法得到的加权完成时间为{weight_sum_time}")
-    return weight_sum_time
+    # lm_sum = lcp
+    return weight_sum_time,lcp,time_sum,lm_sum
 
 
 
@@ -619,45 +643,64 @@ def avg_process_time():
     execution_time_sum2 = 0
     weight_time_sum2 = 0
     weight_time_greedy_sum = 0
-    weight_time_heuristic_sum = 0
+    weight_time_mnth_sum = 0
     weight_time_random_sum = 0
     execution_time_greedy = 0
     execution_time_random = 0
     weight_time_bb_sum = 0
     execution_time_bb_sum = 0
-    for i in range(3):
+    lcp_greedy_sum = 0
+    lcp_mnth_sum = 0
+    lcp_round_sum = 0
+    lm_sum_greedy_sum = 0
+    lm_sum_mnth_sum = 0
+    lm_sum_rounding_sum = 0
+
+
+    weight_time_access_sum = 0
+    for i in range(30):
 
         #产生数据
-        M0, J0, w0, p0 = MyData.data()
+        # M0, J0, w0, p0 = MyData.data()
+        M0, J0, w0, p0,JL,ML = MyData.data()
 
         #整数线性规划
-        optimal_value2,solved_time2 = MILPByGurobi.process_LP(M0, J0, w0, p0)
-        execution_time_sum2 += solved_time2
-        weight_time_sum2 += optimal_value2
+        # optimal_value2,solved_time2 = MILPByGurobi.process_LP(M0, J0, w0, p0)
+        # execution_time_sum2 += solved_time2
+        # weight_time_sum2 += optimal_value2
 
         #贪心
         start_time_greedy = time.time()
-        weight_time_greedy = GreedyAlgorithm.greedy(M0, J0, w0, p0)
+        weight_time_greedy,lcp_greedy,time_sum_greedy,lm_sum_greedy = GreedyAlgorithm.greedy(M0, J0, w0, p0,JL,ML)
         end_time_greedy = time.time()
         execution_time_greedy = execution_time_greedy + (end_time_greedy - start_time_greedy)
         weight_time_greedy_sum += weight_time_greedy
-        #启发式
-        weight_time_heuristic = HeuristicAlgorithm.henuristic(M0, J0, w0, p0)
-        weight_time_heuristic_sum += weight_time_heuristic
-        #随机
+        lcp_greedy_sum += lcp_greedy
+        lm_sum_greedy_sum += lm_sum_greedy
+        # #启发式(模拟退火)
+        weight_time_mnth,lcp_mnth,time_sum_mnth,lm_sum_mnth = mnth.mnth_process_time(M0, J0, w0, p0,JL,ML)
+        weight_time_mnth_sum += weight_time_mnth
+        lcp_mnth_sum += lcp_mnth
+        lm_sum_mnth_sum += lm_sum_mnth
+        # #随机
         start_time_random = time.time()
         weight_time_random = RandomAllocation.random_allo(M0, J0, w0, p0)
         end_time_random = time.time()
         execution_time_random = execution_time_random + (end_time_random - start_time_random)
         weight_time_random_sum += weight_time_random
+        #全由s1执行
+        weight_time_access,time_sum_as = access_satellite.random_allo(M0, J0, w0, p0)
+        weight_time_access_sum += weight_time_access
+
 
 
         # 一个任务集合J，一个机器集合M。用j∈J  i∈M
 
         #松弛的LP
-        M1, J1, w1, p1, x_matrix, T1, optimal_value1,solved_time1,model = LPByGurobi.process_LP(M0, J0, w0, p0)
 
-        # 分支定界法
+        M1, J1, w1, p1, x_matrix, T1, optimal_value1,solved_time1 = LPold.process_LP(M0, J0, w0, p0)
+
+        # # 分支定界法
         start_time_bb = time.time()
         # result, gap,global_LB = bb.bb_optimization(M1, J1, w1, p1)
         global_LB = bb.bb_optimization(M1, J1, w1, p1)
@@ -666,12 +709,47 @@ def avg_process_time():
         execution_time_bb_sum += execution_time_bb
         weight_time_bb_sum += global_LB
 
-        # 检查是否所有值都是整数
+        # # 检查是否所有值都是整数
         are_all_integers = np.all((x_matrix > 0.99) | (x_matrix == 0))
 
         start_time1 = time.time()
         if are_all_integers:
             weight_time1 = optimal_value1
+
+            licp_list = []
+
+            time_sum_round = 0
+            licp_avg = 0
+            licp_sum = 0
+            lcp_up = 0
+            ##若全是整数则计算整数的lcp
+            for i in M0:
+                licp = 0
+                for j in J0:
+                    for t in range(T1+1):
+                        if x_matrix[i,j,t] > 0.99:
+                            time_sum_round += p0[j][i]
+                            licp += JL[j]
+                # licp = licp / ML[i]
+                licp_list.append(licp)
+                licp_sum += licp
+            licp_avg = licp_sum / len(M0)
+
+            # 计算负载
+            lm_sum_rounding = 0
+            for i, element in enumerate(licp_list):
+                lm = element / ML[i+1]
+                lm_sum_rounding += lm
+
+            for l in licp_list:
+                lcp_up += pow(l - licp_avg,2)
+            lcp_round = lcp_up / len(M0)
+            # lm_sum_rounding = lcp_round
+            print(licp_list)
+            print(f'rounding licp_avg  {licp_avg}')
+            print(f"ILP计算负荷的方差为{lcp_round}")
+            print(f"ILP加权完成时间为{weight_time1}")
+
         else:
             global J, M, Pji, W, T
             J = J1
@@ -679,36 +757,80 @@ def avg_process_time():
             Pji = p1
             W = w1
             T = T1
-            weight_time1 = round(x_matrix)
+            weight_time1,lcp_round,time_sum_round,lm_sum_rounding = round(x_matrix,JL,ML)
         # 记录结束时间
         end_time1 = time.time()
         execution_time1 = end_time1 - start_time1
         execution_time_sum1 += execution_time1 + solved_time1
         weight_time_sum1 += weight_time1
+        lcp_round_sum += lcp_round
+        lm_sum_rounding_sum += lm_sum_rounding
 
-
-
+    print("平均执行时间-----------------------------")
     ## 此算法现在是用来评估时延的
-    print(f'rounding的平均执行时间{execution_time_sum1/3}')
-    print(f'bb的平均加执行时间{execution_time_bb_sum / 3}')
-    print(f'ILP的平均执行时间{execution_time_sum2 / 3}')
-    print(f'贪心的平均执行时间{execution_time_greedy / 3}')
-    print(f'随机的平均加执行时间{execution_time_random / 3}')
+    print(f'rounding的平均执行时间{execution_time_sum1/30}')
+    print(f'bb的平均加执行时间{execution_time_bb_sum / 30}')
+    # print(f'ILP的平均执行时间{execution_time_sum2 / 30}')
+    # print(f'贪心的平均执行时间{execution_time_greedy / 30}')
+    # print(f'随机的平均加执行时间{execution_time_random / 30}')
+
+    print("计算负荷的方差-----------------------------")
 
 
-    print(f'rounding的平均加权完成时间{weight_time_sum1/30000}')
+    print(f'rounding的计算负荷的方差{lcp_round_sum / 30000}')
+    print(f'贪心的计算负荷的方差{lcp_greedy_sum / 30000}')
+    print(f'模拟退火的计算负荷的方差{ lcp_mnth_sum/ 30000}')
+
+    print("平均加权完成时间-----------------------------")
+
+    print(f'rounding的平均加权完成时间{weight_time_sum1 / 30000}')
     print(f'bb的平均加权完成时间{weight_time_bb_sum / 30000}')
-    print(f'ILP的平均加权完成时间{weight_time_sum2 / 30000}')
+    # print(f'ILP的平均加权完成时间{weight_time_sum2 / 30000}')
     print(f'贪心的平均加权完成时间{weight_time_greedy_sum / 30000}')
-    # print(f'启发式的平均加权完成时间{weight_time_heuristic_sum / 30}')
     print(f'随机的平均加权完成时间{weight_time_random_sum / 30000}')
+    print(f'模拟退火的平均加权完成时间{weight_time_mnth_sum / 30000}')
+    print(f'全由s1执行的平均加权完成时间{weight_time_access_sum / 30000}')
+
+    print("平均加权完成能量-----------------------------")
+    # print(f'rounding的平均加权完成能量{weight_time_sum1 / 30}')
+    print(f'bb的平均加权完成时间{weight_time_bb_sum / 30}')
+    # print(f'ILP的平均加权完成时间{weight_time_sum2 / 30000}')
+    print(f'贪心的平均加权完成能量{weight_time_greedy_sum / 30}')
+    print(f'随机的平均加权完成能量{weight_time_random_sum / 30}')
+    print(f'模拟退火的平均加权完成能量{weight_time_mnth_sum / 30}')
+    print(f'全由s1执行的平均加权完成能量{weight_time_access_sum / 30}')
+
+    # print("计算任务的总时延-----------------------------")
+    #
+    # print(f'rounding的总时延{time_sum_round / 30000}')
+    # print(f'贪心的总时延{time_sum_greedy / 30000}')
+    # print(f'模拟退火的总时延{time_sum_mnth / 30000}')
+    # print(f'全由s1执行的平均加权完成时间{time_sum_as / 30000}')
+
+    print("计算负荷的比值-----------------------------")
+
+    print(f'rounding的计算负荷的方差{lm_sum_rounding_sum / 30}')
+    print(f'贪心的计算负荷的方差{lm_sum_greedy_sum / 30}')
+    print(f'模拟退火的计算负荷的方差{lm_sum_mnth_sum / 30}')
 
 
-    print(f'rounding的平均总时间{(execution_time_sum1+(weight_time_sum1/1000)) / 30}')
-    print(f'ILP的平均总时间{(execution_time_sum2 + (weight_time_sum2/1000))/ 30}')
-    print(f'bb的平均总时间{(execution_time_bb_sum + (weight_time_bb_sum / 1000)) / 30}')
-    print(f'贪心的平均总时间{(execution_time_greedy + (weight_time_greedy_sum/1000)) / 30}')
-    print(f'随机的平均总时间{(execution_time_random + (weight_time_random_sum/1000))/ 30}')
+    # print("平均加权完成能量-----------------------------")
+    #
+    # print(f'rounding的平均加权完成能量{weight_time_sum1 / 30}')
+    # print(f'bb的平均加权完成能量{weight_time_bb_sum / 30}')
+    # # print(f'ILP的平均加权完成时间{weight_time_sum2 / 30000}')
+    # print(f'贪心的平均加权完成能量{weight_time_greedy_sum / 30}')
+    # # print(f'启发式的平均加权完成时间{weight_time_heuristic_sum / 30}')
+    # print(f'随机的平均加权完成能量{weight_time_random_sum / 30}')
+    # print(f'模拟退火的平均加权完成能量{weight_time_mnth_sum / 30}')
+
+    # print("平均总时间-----------------------------")
+    # print(f'rounding的平均总时间{(execution_time_sum1+(weight_time_sum1/1000)) / 30}')
+    #
+    # print(f'bb的平均总时间{(execution_time_bb_sum + (weight_time_bb_sum / 1000)) / 30}')
+    # print(f'贪心的平均总时间{(execution_time_greedy + (weight_time_greedy_sum/1000)) / 30}')
+    # print(f'随机的平均总时间{(execution_time_random + (weight_time_random_sum/1000))/ 30}')
+    # # print(f'ILP的平均总时间{(execution_time_sum2 + (weight_time_sum2 / 1000)) / 30}')
 
 
 if __name__ == '__main__':

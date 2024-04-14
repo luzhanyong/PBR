@@ -6,7 +6,7 @@ import random
 def random_allo(M,J,w,p):
 
     # 随机分配作业到机器上
-    random.shuffle(J)  # 随机打乱作业顺序
+    # random.shuffle(J)  # 随机打乱作业顺序
     job_assignment = {j: random.choice(M) for j in J}  # 随机分配作业到机器
 
     # 计算加权完成时间
