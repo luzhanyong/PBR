@@ -4,16 +4,6 @@ import math
 import networkx as nx
 
 
-from branchAndBound import bb
-
-from LP import LPold
-
-from data import MyData
-
-
-
-
-
 J = []
 M = []
 
